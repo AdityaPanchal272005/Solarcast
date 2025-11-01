@@ -1,0 +1,21 @@
+[
+  "irradiance",
+  "temp",
+  "humidity",
+  "cloud_cover",
+  "zenith",
+  "wind_speed_10m",
+  "hour",
+  "minute",
+  "dayofyear",
+  "hour_sin",
+  "hour_cos",
+  "irradiance_lag1",
+  "irradiance_lag2",
+  "irradiance_roll3",
+  "irradiance_roll5",
+  "temp_lag1",
+  "temp_lag2",
+  "temp_roll3",
+  "temp_roll5"
+]
