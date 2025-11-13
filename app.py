@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import altair as alt
 import json
 import joblib
 from datetime import datetime, timedelta
@@ -15,30 +16,312 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Enhanced Custom CSS with animations and modern styling
 st.markdown("""
     <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #FF6B35;
-        text-align: center;
-        margin-bottom: 1rem;
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+    
+    * {
+        font-family: 'Poppins', sans-serif;
     }
+    
+    .main-header {
+        font-size: 3rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        animation: fadeInDown 0.8s ease-out;
+    }
+    
+    @keyframes fadeInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
     .prediction-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 1.5rem;
-        border-radius: 10px;
+        padding: 2rem;
+        border-radius: 15px;
         color: white;
         margin: 1rem 0;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        animation: slideInUp 0.6s ease-out;
     }
+    
+    .prediction-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+    }
+    
+    @keyframes slideInUp {
+        from {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
     .metric-card {
-        background-color: #f0f2f6;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border-left: 5px solid #FF6B35;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s ease;
+    }
+    
+    .metric-card:hover {
+        transform: translateX(5px);
+    }
+    
+    .info-box {
+        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        padding: 1.5rem;
+        border-radius: 10px;
+        border: 2px solid #667eea;
+        margin: 1rem 0;
+    }
+    
+    .stMetric {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        padding: 1rem;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    
+    .stButton>button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 2rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+    }
+    
+    .feature-card {
+        background: white;
         padding: 1rem;
         border-radius: 8px;
-        border-left: 4px solid #FF6B35;
+        margin: 0.5rem 0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        border-left: 4px solid #4ECDC4;
+    }
+    
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+        min-width: 250px !important;
+    }
+    
+    [data-testid="stSidebar"] .stRadio label {
+        color: white;
+        font-weight: 500;
+        font-size: 1.1rem;
+        padding: 0.5rem;
+    }
+    
+    [data-testid="stSidebar"] .stRadio [role="radiogroup"] {
+        gap: 0.5rem;
+    }
+    
+    /* Make sidebar always visible */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        min-width: 250px !important;
+    }
+    
+    /* Add prominent button for manual prediction */
+    .manual-pred-btn {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        text-align: center;
+        margin: 1rem 0;
+        font-weight: 600;
+        font-size: 1.1rem;
+        box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4);
+        transition: transform 0.3s ease;
+    }
+    
+    .manual-pred-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(240, 147, 251, 0.5);
+    }
+    
+    /* Hamburger menu button */
+    .hamburger-menu {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        z-index: 9999;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+        border-radius: 8px;
+        padding: 12px 15px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        transition: all 0.3s ease;
+    }
+    
+    .hamburger-menu:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    .hamburger-icon {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 24px;
+    }
+    
+    .hamburger-icon span {
+        display: block;
+        height: 3px;
+        width: 100%;
+        background: white;
+        border-radius: 2px;
+        transition: all 0.3s ease;
+    }
+    
+    .hamburger-menu:hover .hamburger-icon span {
+        background: #f093fb;
+    }
+    
+    /* Tooltip for hamburger menu */
+    .hamburger-tooltip {
+        position: absolute;
+        left: 60px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+    
+    .hamburger-menu:hover .hamburger-tooltip {
+        opacity: 1;
+    }
+    
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Ensure sidebar is accessible */
+    [data-testid="stSidebar"] {
+        position: relative !important;
+    }
+    
+    /* Add padding to main content to account for hamburger */
+    .main .block-container {
+        padding-top: 1rem;
     }
     </style>
+    
+    <script>
+    // Function to toggle Streamlit sidebar - enhanced version
+    function toggleStreamlitSidebar() {
+        // Function to try clicking sidebar toggle
+        function tryToggle() {
+            // Try multiple selectors to find the sidebar toggle button
+            const selectors = [
+                '[data-testid="stSidebarCollapseButton"]',
+                '[data-testid="stSidebarExpandButton"]',
+                '[data-testid="collapsedControl"]',
+                '[data-testid="baseButton-header"]',
+                'button[kind="header"]'
+            ];
+            
+            for (const selector of selectors) {
+                try {
+                    const button = document.querySelector(selector);
+                    if (button && button.offsetParent !== null) { // Check if visible
+                        button.click();
+                        return true;
+                    }
+                } catch (e) {
+                    console.log('Selector failed:', selector);
+                }
+            }
+            
+            // Fallback: try to find sidebar and look for toggle buttons
+            const sidebar = document.querySelector('[data-testid="stSidebar"]');
+            if (sidebar) {
+                // Look for buttons near the sidebar
+                const allButtons = document.querySelectorAll('button');
+                for (const btn of allButtons) {
+                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                    const ariaExpanded = btn.getAttribute('aria-expanded');
+                    
+                    if (ariaLabel.includes('sidebar') || 
+                        ariaLabel.includes('collapse') ||
+                        ariaLabel.includes('expand') ||
+                        ariaLabel.includes('menu')) {
+                        if (btn.offsetParent !== null) { // Check if visible
+                            btn.click();
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        }
+        
+        // Try immediately
+        if (tryToggle()) {
+            return true;
+        }
+        
+        // If not found, wait a bit and try again (for dynamic content)
+        setTimeout(() => {
+            tryToggle();
+        }, 100);
+        
+        return false;
+    }
+    
+    // Make function globally available
+    window.toggleStreamlitSidebar = toggleStreamlitSidebar;
+    
+    // Also try to attach event listeners when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ensure function is available
+            window.toggleStreamlitSidebar = toggleStreamlitSidebar;
+        });
+    }
+    </script>
 """, unsafe_allow_html=True)
 
 # ---------------- Paths ----------------
@@ -203,8 +486,45 @@ model = load_model()
 feature_cols = load_feature_columns()
 
 # ---------------- Sidebar Navigation ----------------
-st.sidebar.title("🌞 SolarCast")
-page = st.sidebar.radio("Navigation", ["📊 Dashboard", "🔮 Manual Prediction"])
+st.sidebar.markdown("""
+    <div style="text-align: center; padding: 1rem 0;">
+        <h1 style="color: white; margin: 0; font-size: 2.5rem;">🌞 SolarCast</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 0.5rem 0; font-size: 1.1rem; font-weight: 500;">Solar Power Prediction</p>
+    </div>
+""", unsafe_allow_html=True)
+st.sidebar.markdown("---")
+
+st.sidebar.markdown("### 🧭 Navigation", unsafe_allow_html=True)
+page = st.sidebar.radio(
+    "Select Page",
+    ["📊 Dashboard", "🔮 Manual Prediction"],
+    label_visibility="collapsed"
+)
+
+# Add prominent manual prediction button
+if page == "📊 Dashboard":
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                    padding: 1.2rem; border-radius: 12px; text-align: center; 
+                    box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4); margin: 1rem 0;">
+            <h3 style="color: white; margin: 0 0 0.5rem 0; font-size: 1.2rem;">🔮 Try Manual Prediction</h3>
+            <p style="color: rgba(255,255,255,0.9); margin: 0; font-size: 0.9rem;">
+                Predict power output with custom parameters
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+# Add info section in sidebar
+st.sidebar.markdown("---")
+st.sidebar.markdown("""
+    <div style="background: rgba(255,255,255,0.15); padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+        <h4 style="color: white; margin: 0 0 0.5rem 0;">ℹ️ About</h4>
+        <p style="color: rgba(255,255,255,0.95); font-size: 0.9rem; margin: 0; line-height: 1.5;">
+            Advanced ML-powered solar power forecasting system using Random Forest regression.
+        </p>
+    </div>
+""", unsafe_allow_html=True)
 
 # ---------------- Dashboard Page ----------------
 if page == "📊 Dashboard":
@@ -261,28 +581,107 @@ if page == "📊 Dashboard":
     mask = (df[time_col].dt.date >= start_date) & (df[time_col].dt.date <= end_date)
     dfv = df.loc[mask].copy()
     
-    # Header
-    st.markdown('<div class="main-header">🌞 SolarCast — Solar Power Prediction Dashboard</div>', unsafe_allow_html=True)
-    st.caption("Predicting solar plant output with Random Forest Model")
+    # Add hamburger menu button instruction
+    st.markdown("""
+    <div id="hamburger-menu-btn" style="position: fixed; top: 20px; left: 20px; z-index: 9999; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                border: none; border-radius: 8px; padding: 12px 15px; cursor: pointer; 
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;" 
+                onclick="toggleStreamlitSidebar()">
+        <div style="display: flex; flex-direction: column; gap: 4px; width: 24px;">
+            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
+            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
+            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    # KPIs
+    # Header with enhanced styling
+    st.markdown('<div class="main-header">🌞 SolarCast — Solar Power Prediction Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; color: #667eea; font-size: 1.2rem; margin-bottom: 2rem;">⚡ Advanced Solar Power Forecasting with Machine Learning</p>', unsafe_allow_html=True)
+    
+    # Add prominent link to manual prediction
+    col_nav1, col_nav2, col_nav3 = st.columns([1, 2, 1])
+    with col_nav2:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                    padding: 1rem; border-radius: 12px; text-align: center; 
+                    box-shadow: 0 4px 15px rgba(240, 147, 251, 0.4); margin-bottom: 2rem;">
+            <h3 style="color: white; margin: 0; font-size: 1.3rem;">🔮 Want to make a custom prediction?</h3>
+            <p style="color: rgba(255,255,255,0.95); margin: 0.5rem 0 0 0; font-size: 1rem;">
+                Click the <strong>☰</strong> menu button on the top-left to open navigation, then select "🔮 Manual Prediction"
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Enhanced KPIs with icons and better styling
     if col_model and col_model in dfv.columns:
         k_mae = float(np.mean(np.abs(dfv[col_actual] - dfv[col_model])))
         k_rmse = rmse(dfv[col_actual], dfv[col_model])
         k_mape = mape(dfv[col_actual], dfv[col_model])
+        avg_actual = float(dfv[col_actual].mean())
+        avg_predicted = float(dfv[col_model].mean())
+        max_power = float(dfv[col_actual].max())
     else:
-        k_mae = k_rmse = k_mape = np.nan
+        k_mae = k_rmse = k_mape = avg_actual = avg_predicted = max_power = np.nan
     
-    k1, k2, k3 = st.columns(3)
+    # First row of metrics
+    k1, k2, k3, k4 = st.columns(4)
     with k1:
-        st.metric("MAE (model)", f"{k_mae:,.2f} kW" if not np.isnan(k_mae) else "—")
-    with k2:
-        st.metric("RMSE (model)", f"{k_rmse:,.2f} kW" if not np.isnan(k_rmse) else "—")
-    with k3:
-        st.metric("MAPE %", f"{k_mape:,.2f}%" if not np.isnan(k_mape) else "—")
+        if not np.isnan(k_mae):
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        padding: 1.5rem; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
+                <h4 style="margin: 0; opacity: 0.9;">📊 Mean Absolute Error</h4>
+                <h2 style="margin: 0.5rem 0; font-size: 2rem;">{k_mae:,.2f}</h2>
+                <p style="margin: 0; opacity: 0.8;">kW</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.metric("MAE", "—")
     
-    # Main chart
-    st.subheader("📉 Actual vs Predicted Power Output")
+    with k2:
+        if not np.isnan(k_rmse):
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                        padding: 1.5rem; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(240, 147, 251, 0.3);">
+                <h4 style="margin: 0; opacity: 0.9;">📈 Root Mean Square Error</h4>
+                <h2 style="margin: 0.5rem 0; font-size: 2rem;">{k_rmse:,.2f}</h2>
+                <p style="margin: 0; opacity: 0.8;">kW</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.metric("RMSE", "—")
+    
+    with k3:
+        if not np.isnan(k_mape):
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                        padding: 1.5rem; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);">
+                <h4 style="margin: 0; opacity: 0.9;">🎯 Mean Absolute % Error</h4>
+                <h2 style="margin: 0.5rem 0; font-size: 2rem;">{k_mape:,.2f}</h2>
+                <p style="margin: 0; opacity: 0.8;">%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.metric("MAPE", "—")
+    
+    with k4:
+        if not np.isnan(max_power):
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); 
+                        padding: 1.5rem; border-radius: 12px; color: white; text-align: center; box-shadow: 0 4px 15px rgba(67, 233, 123, 0.3);">
+                <h4 style="margin: 0; opacity: 0.9;">⚡ Peak Power</h4>
+                <h2 style="margin: 0.5rem 0; font-size: 2rem;">{max_power:,.0f}</h2>
+                <p style="margin: 0; opacity: 0.8;">kW</p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.metric("Peak", "—")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Enhanced Main chart section
+    st.markdown("### 📉 Power Output Analysis")
     
     # Build plotting frame from filtered data
     plot_cols = [time_col, col_actual]
@@ -302,31 +701,84 @@ if page == "📊 Dashboard":
                   .reset_index())
         line_w = 2.5
     else:
-        line_w = 1.0
+        line_w = 1.5
     
-    # Create plot
-    fig, ax = plt.subplots(figsize=(12, 5))
-    handles = []
+    # Create interactive Altair chart
+    chart_data = dfp.copy()
+    chart_data[time_col] = pd.to_datetime(chart_data[time_col])
     
-    # Always plot Actual
-    h_actual, = ax.plot(dfp[time_col], dfp[col_actual], label="Actual", linewidth=line_w, color='#2E86AB')
-    handles.append(h_actual)
+    # Prepare data for Altair
+    base = alt.Chart(chart_data).encode(
+        x=alt.X(f'{time_col}:T', title='Date & Time', axis=alt.Axis(format='%Y-%m-%d %H:%M'))
+    )
     
-    # Conditionally add Baseline / Model
+    # Create layers for each series
+    layers = []
+    
+    # Actual line
+    actual_line = base.mark_line(
+        stroke='#2E86AB',
+        strokeWidth=line_w,
+        point=alt.OverlayMarkDef(size=30, filled=True, fill='#2E86AB')
+    ).encode(
+        y=alt.Y(f'{col_actual}:Q', title='Power (kW)', scale=alt.Scale(zero=False)),
+        tooltip=[alt.Tooltip(f'{time_col}:T', format='%Y-%m-%d %H:%M'), alt.Tooltip(f'{col_actual}:Q', format='.2f', title='Actual Power (kW)')]
+    ).properties(
+        title='Actual vs Predicted Power Output',
+        width=800,
+        height=400
+    )
+    layers.append(actual_line)
+    
+    # Model prediction line
+    if show_model and col_model and col_model in chart_data.columns:
+        model_line = base.mark_line(
+            stroke='#F18F01',
+            strokeWidth=line_w,
+            strokeDash=[5, 5],
+            point=alt.OverlayMarkDef(size=20, filled=True, fill='#F18F01')
+        ).encode(
+            y=alt.Y(f'{col_model}:Q', title='Power (kW)'),
+            tooltip=[alt.Tooltip(f'{time_col}:T', format='%Y-%m-%d %H:%M'), alt.Tooltip(f'{col_model}:Q', format='.2f', title='Predicted Power (kW)')]
+        )
+        layers.append(model_line)
+    
+    # Baseline line
+    if show_baseline and col_base and col_base in chart_data.columns:
+        baseline_line = base.mark_line(
+            stroke='#A23B72',
+            strokeWidth=line_w,
+            strokeDash=[2, 2],
+            point=alt.OverlayMarkDef(size=15, filled=True, fill='#A23B72')
+        ).encode(
+            y=alt.Y(f'{col_base}:Q', title='Power (kW)'),
+            tooltip=[alt.Tooltip(f'{time_col}:T', format='%Y-%m-%d %H:%M'), alt.Tooltip(f'{col_base}:Q', format='.2f', title='Baseline Power (kW)')]
+        )
+        layers.append(baseline_line)
+    
+    # Combine layers
+    chart = alt.layer(*layers).resolve_scale(y='shared').interactive()
+    st.altair_chart(chart, use_container_width=True)
+    
+    # Also create matplotlib version for download
+    fig, ax = plt.subplots(figsize=(14, 6))
+    ax.plot(dfp[time_col], dfp[col_actual], label="Actual", linewidth=line_w, color='#2E86AB', marker='o', markersize=3)
+    
     if show_baseline and col_base and col_base in dfp.columns:
-        h_base, = ax.plot(dfp[time_col], dfp[col_base], label="Baseline", linestyle=":", linewidth=line_w, color='#A23B72')
-        handles.append(h_base)
+        ax.plot(dfp[time_col], dfp[col_base], label="Baseline", linestyle=":", linewidth=line_w, color='#A23B72', marker='s', markersize=2)
     
     if show_model and col_model and col_model in dfp.columns:
-        h_model, = ax.plot(dfp[time_col], dfp[col_model], label="Predicted (Random Forest)", linestyle="--", linewidth=line_w, color='#F18F01')
-        handles.append(h_model)
+        ax.plot(dfp[time_col], dfp[col_model], label="Predicted (Random Forest)", linestyle="--", linewidth=line_w, color='#F18F01', marker='^', markersize=2)
     
-    ax.set_xlabel("Datetime", fontsize=11)
-    ax.set_ylabel("Power (kW)", fontsize=11)
-    ax.set_title("Baseline vs Model Forecast Comparison", fontsize=13, fontweight='bold')
-    ax.legend(handles=handles, loc="upper left")
-    ax.grid(True, alpha=0.3)
+    ax.set_xlabel("Datetime", fontsize=12, fontweight='bold')
+    ax.set_ylabel("Power (kW)", fontsize=12, fontweight='bold')
+    ax.set_title("Power Output Forecast Comparison", fontsize=14, fontweight='bold', pad=20)
+    ax.legend(loc="upper left", fontsize=10, framealpha=0.9)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     fig.autofmt_xdate()
+    fig.patch.set_facecolor('white')
     st.pyplot(fig)
     plt.close(fig)
     
@@ -346,15 +798,88 @@ if page == "📊 Dashboard":
         st.pyplot(fig2)
         plt.close(fig2)
     
-    # Data table
-    st.subheader("🧾 Forecast Data (filtered)")
-    st.dataframe(dfv.head(300), use_container_width=True)
+    # Summary Statistics Section
+    st.markdown("---")
+    st.markdown("### 📊 Summary Statistics")
+    
+    if col_model and col_model in dfv.columns:
+        stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+        
+        with stat_col1:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                        padding: 1.5rem; border-radius: 10px; border-left: 4px solid #667eea; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
+                <p style="margin: 0; color: rgba(255,255,255,0.9); font-weight: 600; font-size: 0.9rem;">Average Actual</p>
+                <h3 style="margin: 0.5rem 0 0 0; color: white; font-weight: 700; font-size: 1.5rem;">{avg_actual:,.2f} kW</h3>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with stat_col2:
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); 
+                        padding: 1.5rem; border-radius: 10px; border-left: 4px solid #f093fb; box-shadow: 0 4px 15px rgba(240, 147, 251, 0.3);">
+                <p style="margin: 0; color: rgba(255,255,255,0.9); font-weight: 600; font-size: 0.9rem;">Average Predicted</p>
+                <h3 style="margin: 0.5rem 0 0 0; color: white; font-weight: 700; font-size: 1.5rem;">{avg_predicted:,.2f} kW</h3>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with stat_col3:
+            min_actual = float(dfv[col_actual].min())
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); 
+                        padding: 1.5rem; border-radius: 10px; border-left: 4px solid #4facfe; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);">
+                <p style="margin: 0; color: rgba(255,255,255,0.9); font-weight: 600; font-size: 0.9rem;">Minimum Power</p>
+                <h3 style="margin: 0.5rem 0 0 0; color: white; font-weight: 700; font-size: 1.5rem;">{min_actual:,.2f} kW</h3>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with stat_col4:
+            std_actual = float(dfv[col_actual].std())
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); 
+                        padding: 1.5rem; border-radius: 10px; border-left: 4px solid #43e97b; box-shadow: 0 4px 15px rgba(67, 233, 123, 0.3);">
+                <p style="margin: 0; color: rgba(255,255,255,0.9); font-weight: 600; font-size: 0.9rem;">Std Deviation</p>
+                <h3 style="margin: 0.5rem 0 0 0; color: white; font-weight: 700; font-size: 1.5rem;">{std_actual:,.2f} kW</h3>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Data table with better styling
+    st.markdown("### 🧾 Forecast Data (filtered)")
+    st.dataframe(
+        dfv.head(300).style.background_gradient(subset=[col_actual] if col_actual in dfv.columns else [], cmap='YlOrRd'),
+        use_container_width=True,
+        height=400
+    )
     
     st.markdown("---")
-    st.caption(f"📁 Data Source: {DATA_PATH} | Rows in filter: {len(dfv)} | Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    st.markdown(f"""
+    <div style="text-align: center; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+        <p style="margin: 0; color: #667eea;">
+            📁 <strong>Data Source:</strong> {DATA_PATH.name} | 
+            📊 <strong>Rows:</strong> {len(dfv):,} | 
+            🕒 <strong>Updated:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ---------------- Manual Prediction Page ----------------
 elif page == "🔮 Manual Prediction":
+    # Add hamburger menu button for manual prediction page too
+    st.markdown("""
+    <div id="hamburger-menu-btn-2" style="position: fixed; top: 20px; left: 20px; z-index: 9999; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                border: none; border-radius: 8px; padding: 12px 15px; cursor: pointer; 
+                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;" 
+                onclick="toggleStreamlitSidebar()">
+        <div style="display: flex; flex-direction: column; gap: 4px; width: 24px;">
+            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
+            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
+            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown('<div class="main-header">🔮 Manual Power Prediction</div>', unsafe_allow_html=True)
     st.markdown("---")
     
@@ -481,84 +1006,212 @@ elif page == "🔮 Manual Prediction":
             else:
                 prediction = float(prediction_result)
             
-            # Display results
+            # Display results with enhanced styling
             st.markdown("---")
-            st.markdown("## 📊 Prediction Results")
+            st.markdown('<h2 style="text-align: center; color: #667eea; margin-bottom: 2rem;">✨ Prediction Results ✨</h2>', unsafe_allow_html=True)
             
-            # Result cards
+            # Result cards with animations
             col_result1, col_result2, col_result3 = st.columns(3)
             
             with col_result1:
                 st.markdown(f"""
-                <div class="prediction-card">
-                    <h3>Predicted Power</h3>
-                    <h1 style="font-size: 3rem; margin: 0;">{prediction:.2f}</h1>
-                    <p style="font-size: 1.2rem; margin-top: 0.5rem;">kW</p>
+                <div class="prediction-card" style="animation-delay: 0s;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <h3 style="margin: 0; opacity: 0.9; font-size: 1.1rem;">⚡ Predicted Power</h3>
+                            <h1 style="font-size: 3.5rem; margin: 0.5rem 0; font-weight: 700;">{prediction:.2f}</h1>
+                            <p style="font-size: 1.3rem; margin: 0; opacity: 0.9;">kW</p>
+                        </div>
+                        <div style="font-size: 4rem; opacity: 0.3;">⚡</div>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col_result2:
+                efficiency_ratio = float((prediction / max(irradiance, 1)) * 100 if irradiance > 0 else 0)
                 st.markdown(f"""
                 <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-                            padding: 1.5rem; border-radius: 10px; color: white;">
-                    <h3>Prediction Date & Time</h3>
-                    <p style="font-size: 1.3rem; margin: 0.5rem 0;"><strong>{dt.strftime('%Y-%m-%d')}</strong></p>
-                    <p style="font-size: 1.3rem; margin: 0;"><strong>{selected_time}</strong></p>
+                            padding: 2rem; border-radius: 15px; color: white; box-shadow: 0 10px 30px rgba(240, 147, 251, 0.3);
+                            animation: slideInUp 0.6s ease-out; animation-delay: 0.2s;">
+                    <h3 style="margin: 0; opacity: 0.9; font-size: 1.1rem;">📅 Date & Time</h3>
+                    <p style="font-size: 1.4rem; margin: 0.8rem 0; font-weight: 600;"><strong>{dt.strftime('%Y-%m-%d')}</strong></p>
+                    <p style="font-size: 1.4rem; margin: 0; font-weight: 600;"><strong>{selected_time}</strong></p>
                 </div>
                 """, unsafe_allow_html=True)
             
             with col_result3:
-                # Calculate some insights
-                efficiency_ratio = float((prediction / max(irradiance, 1)) * 100 if irradiance > 0 else 0)
                 st.markdown(f"""
                 <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                            padding: 1.5rem; border-radius: 10px; color: white;">
-                    <h3>Efficiency Ratio</h3>
-                    <h1 style="font-size: 2.5rem; margin: 0;">{efficiency_ratio:.2f}</h1>
-                    <p style="font-size: 1rem; margin-top: 0.5rem;">%</p>
+                            padding: 2rem; border-radius: 15px; color: white; box-shadow: 0 10px 30px rgba(79, 172, 254, 0.3);
+                            animation: slideInUp 0.6s ease-out; animation-delay: 0.4s;">
+                    <h3 style="margin: 0; opacity: 0.9; font-size: 1.1rem;">🎯 Efficiency Ratio</h3>
+                    <h1 style="font-size: 3rem; margin: 0.5rem 0; font-weight: 700;">{efficiency_ratio:.2f}</h1>
+                    <p style="font-size: 1.2rem; margin: 0; opacity: 0.9;">%</p>
                 </div>
                 """, unsafe_allow_html=True)
             
-            # Feature details
+            # Feature details - Only show user-input weather parameters
             st.markdown("---")
-            st.subheader("📋 Feature Values Used")
+            st.subheader("📋 Weather Parameters Used")
             
-            feature_display = pd.DataFrame({
-                'Feature': feature_cols,
-                'Value': [features_dict[col] for col in feature_cols]
-            })
-            st.dataframe(feature_display, use_container_width=True)
+            # Only show the weather parameters that user manually inputs
+            user_input_features = ['irradiance', 'temp', 'humidity', 'cloud_cover', 'wind_speed_10m']
             
-            # Visualization
+            # Create display names for better readability
+            display_names = {
+                'irradiance': '☀️ Irradiance (W/m²)',
+                'temp': '🌡️ Temperature (°C)',
+                'humidity': '💧 Humidity (%)',
+                'cloud_cover': '☁️ Cloud Cover (%)',
+                'wind_speed_10m': '💨 Wind Speed (m/s)'
+            }
+            
+            feature_display_data = {
+                'Parameter': [display_names.get(feat, feat) for feat in user_input_features],
+                'Value': [features_dict[feat] for feat in user_input_features]
+            }
+            
+            feature_display = pd.DataFrame(feature_display_data)
+            st.dataframe(feature_display, use_container_width=True, hide_index=True)
+            
+            # Enhanced Visualization Section
             st.markdown("---")
-            st.subheader("📈 Prediction Visualization")
+            st.markdown("### 📈 Interactive Visualizations")
             
-            fig, ax = plt.subplots(figsize=(10, 5))
+            # Create two columns for visualizations
+            viz_col1, viz_col2 = st.columns(2)
             
-            # Bar chart showing key inputs
-            key_features = ['irradiance', 'temp', 'humidity', 'cloud_cover']
-            key_values = [features_dict[k] for k in key_features]
+            with viz_col1:
+                # Bar chart showing key inputs using Altair
+                key_features = ['Irradiance', 'Temperature', 'Humidity', 'Cloud Cover']
+                key_values = [features_dict['irradiance'], features_dict['temp'], 
+                             features_dict['humidity'], features_dict['cloud_cover']]
+                
+                # Normalize for visualization
+                normalized_values = []
+                max_vals = [1500, 50, 100, 100]
+                for val, max_val in zip(key_values, max_vals):
+                    normalized_values.append((val / max_val) * 100)
+                
+                # Create Altair bar chart
+                source = pd.DataFrame({
+                    'Parameter': key_features,
+                    'Normalized Value (%)': normalized_values,
+                    'Actual Value': key_values
+                })
+                
+                bars = alt.Chart(source).mark_bar(
+                    cornerRadiusTopLeft=5,
+                    cornerRadiusTopRight=5
+                ).encode(
+                    x=alt.X('Parameter:N', title='Parameters', axis=alt.Axis(labelAngle=-45)),
+                    y=alt.Y('Normalized Value (%):Q', title='Normalized Value (%)', scale=alt.Scale(domain=[0, 100])),
+                    color=alt.Color('Parameter:N', scale=alt.Scale(
+                        domain=key_features,
+                        range=['#FF6B35', '#4ECDC4', '#45B7D1', '#96CEB4']
+                    )),
+                    tooltip=[alt.Tooltip('Parameter:N'), 
+                            alt.Tooltip('Actual Value:Q', format='.1f', title='Actual Value'),
+                            alt.Tooltip('Normalized Value (%):Q', format='.1f', title='Normalized (%)')]
+                ).properties(
+                    title='Key Input Parameters',
+                    width=300,
+                    height=300
+                )
+                st.altair_chart(bars, use_container_width=True)
             
-            # Normalize for visualization (scale to 0-100)
-            normalized_values = []
-            max_vals = [1500, 50, 100, 100]  # Max expected values
-            for val, max_val in zip(key_values, max_vals):
-                normalized_values.append((val / max_val) * 100)
+            with viz_col2:
+                # Gauge-style visualization for prediction
+                max_power = 1000
+                power_percentage = float(min(100, (prediction / max_power) * 100))
+                
+                # Create a simple gauge visualization
+                gauge_data = pd.DataFrame({
+                    'Metric': ['Predicted Power'],
+                    'Value': [power_percentage],
+                    'Max': [100]
+                })
+                
+                gauge = alt.Chart(gauge_data).mark_bar(
+                    cornerRadiusTopLeft=10,
+                    cornerRadiusTopRight=10
+                ).encode(
+                    x=alt.X('Metric:N', title=''),
+                    y=alt.Y('Value:Q', title='Percentage (%)', scale=alt.Scale(domain=[0, 100])),
+                    color=alt.Color('Value:Q', scale=alt.Scale(
+                        domain=[0, 50, 100],
+                        range=['#f5576c', '#f093fb', '#43e97b']
+                    )),
+                    tooltip=[alt.Tooltip('Value:Q', format='.1f', title='Power Output (%)')]
+                ).properties(
+                    title=f'Power Output: {prediction:.2f} kW',
+                    width=300,
+                    height=300
+                )
+                st.altair_chart(gauge, use_container_width=True)
             
-            bars = ax.bar(key_features, normalized_values, color=['#FF6B35', '#4ECDC4', '#45B7D1', '#96CEB4'])
-            ax.set_ylabel('Normalized Value (%)', fontsize=11)
-            ax.set_title('Key Input Parameters (Normalized)', fontsize=13, fontweight='bold')
-            ax.set_ylim(0, 100)
-            ax.grid(True, alpha=0.3, axis='y')
+            # Additional matplotlib visualization
+            st.markdown("#### Detailed Parameter Analysis")
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(14, 10))
+            fig.suptitle('Weather Parameters & Prediction Analysis', fontsize=16, fontweight='bold', y=1.02)
             
-            # Add value labels on bars
+            # 1. Bar chart
+            bars = ax1.bar(key_features, normalized_values, color=['#FF6B35', '#4ECDC4', '#45B7D1', '#96CEB4'], edgecolor='black', linewidth=1.5)
+            ax1.set_ylabel('Normalized Value (%)', fontsize=11, fontweight='bold')
+            ax1.set_title('Input Parameters (Normalized)', fontsize=12, fontweight='bold')
+            ax1.set_ylim(0, 100)
+            ax1.grid(True, alpha=0.3, axis='y', linestyle='--')
             for bar, val in zip(bars, key_values):
                 height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height,
+                ax1.text(bar.get_x() + bar.get_width()/2., height + 2,
                        f'{val:.1f}',
-                       ha='center', va='bottom', fontsize=9)
+                       ha='center', va='bottom', fontsize=10, fontweight='bold')
+            ax1.spines['top'].set_visible(False)
+            ax1.spines['right'].set_visible(False)
             
-            plt.xticks(rotation=45, ha='right')
+            # 2. Pie chart for weather conditions
+            weather_labels = ['Clear', 'Partly Cloudy', 'Cloudy']
+            cloud_val = cloud_cover
+            if cloud_val < 30:
+                weather_values = [100-cloud_val, cloud_val, 0]
+            elif cloud_val < 70:
+                weather_values = [30, cloud_val-30, 70-cloud_val]
+            else:
+                weather_values = [0, 30, cloud_val]
+            
+            colors_pie = ['#FFD93D', '#6BCB77', '#4D96FF']
+            ax2.pie(weather_values, labels=weather_labels, autopct='%1.1f%%', 
+                   colors=colors_pie, startangle=90, textprops={'fontsize': 10, 'fontweight': 'bold'})
+            ax2.set_title('Weather Conditions', fontsize=12, fontweight='bold')
+            
+            # 3. Prediction vs Input comparison
+            comparison_data = {
+                'Irradiance': irradiance / 10,  # Scale down for visualization
+                'Predicted Power': prediction
+            }
+            ax3.bar(comparison_data.keys(), comparison_data.values(), 
+                   color=['#667eea', '#f093fb'], edgecolor='black', linewidth=1.5)
+            ax3.set_ylabel('Value', fontsize=11, fontweight='bold')
+            ax3.set_title('Irradiance vs Predicted Power', fontsize=12, fontweight='bold')
+            ax3.grid(True, alpha=0.3, axis='y', linestyle='--')
+            ax3.spines['top'].set_visible(False)
+            ax3.spines['right'].set_visible(False)
+            
+            # 4. Efficiency metrics
+            efficiency_metrics = {
+                'Efficiency': efficiency_ratio,
+                'Power Output': power_percentage
+            }
+            ax4.barh(list(efficiency_metrics.keys()), list(efficiency_metrics.values()),
+                    color=['#43e97b', '#38f9d7'], edgecolor='black', linewidth=1.5)
+            ax4.set_xlabel('Percentage (%)', fontsize=11, fontweight='bold')
+            ax4.set_title('Performance Metrics', fontsize=12, fontweight='bold')
+            ax4.set_xlim(0, 100)
+            ax4.grid(True, alpha=0.3, axis='x', linestyle='--')
+            ax4.spines['top'].set_visible(False)
+            ax4.spines['right'].set_visible(False)
+            
+            plt.tight_layout()
             st.pyplot(fig)
             plt.close(fig)
             
