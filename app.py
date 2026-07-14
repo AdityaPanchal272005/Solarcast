@@ -464,9 +464,10 @@ if page == "📊 Dashboard":
         max_value=max_date
     )
     
-    # Handle tuple return shape
+    # Handle tuple return shape — guard against single-date selection mid-pick
     if isinstance(date_range, (tuple, list)):
-        start_date, end_date = date_range[0], date_range[1]
+        start_date = date_range[0]
+        end_date = date_range[1] if len(date_range) > 1 else date_range[0]
     else:
         start_date, end_date = date_range, date_range
     
