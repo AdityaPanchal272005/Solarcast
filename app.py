@@ -1,5 +1,6 @@
 # app.py — SolarCast Dashboard with Manual Prediction
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,6 +9,7 @@ import json
 import joblib
 from datetime import datetime, timedelta
 from pathlib import Path
+from sklearn.ensemble import RandomForestRegressor
 
 # ---------------- Page config ----------------
 st.set_page_config(
@@ -171,71 +173,9 @@ st.markdown("""
         box-shadow: 0 6px 20px rgba(240, 147, 251, 0.5);
     }
     
-    /* Hamburger menu button */
-    .hamburger-menu {
-        position: fixed;
-        top: 20px;
-        left: 20px;
-        z-index: 9999;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border: none;
-        border-radius: 8px;
-        padding: 12px 15px;
-        cursor: pointer;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-        transition: all 0.3s ease;
-    }
-    
-    .hamburger-menu:hover {
-        transform: scale(1.1);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
-    }
-    
-    .hamburger-icon {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        width: 24px;
-    }
-    
-    .hamburger-icon span {
-        display: block;
-        height: 3px;
-        width: 100%;
-        background: white;
-        border-radius: 2px;
-        transition: all 0.3s ease;
-    }
-    
-    .hamburger-menu:hover .hamburger-icon span {
-        background: #f093fb;
-    }
-    
-    /* Tooltip for hamburger menu */
-    .hamburger-tooltip {
-        position: absolute;
-        left: 60px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: rgba(0, 0, 0, 0.8);
-        color: white;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        white-space: nowrap;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.3s ease;
-    }
-    
-    .hamburger-menu:hover .hamburger-tooltip {
-        opacity: 1;
-    }
-    
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     
     /* Ensure sidebar is accessible */
     [data-testid="stSidebar"] {
@@ -247,81 +187,6 @@ st.markdown("""
         padding-top: 1rem;
     }
     </style>
-    
-    <script>
-    // Function to toggle Streamlit sidebar - enhanced version
-    function toggleStreamlitSidebar() {
-        // Function to try clicking sidebar toggle
-        function tryToggle() {
-            // Try multiple selectors to find the sidebar toggle button
-            const selectors = [
-                '[data-testid="stSidebarCollapseButton"]',
-                '[data-testid="stSidebarExpandButton"]',
-                '[data-testid="collapsedControl"]',
-                '[data-testid="baseButton-header"]',
-                'button[kind="header"]'
-            ];
-            
-            for (const selector of selectors) {
-                try {
-                    const button = document.querySelector(selector);
-                    if (button && button.offsetParent !== null) { // Check if visible
-                        button.click();
-                        return true;
-                    }
-                } catch (e) {
-                    console.log('Selector failed:', selector);
-                }
-            }
-            
-            // Fallback: try to find sidebar and look for toggle buttons
-            const sidebar = document.querySelector('[data-testid="stSidebar"]');
-            if (sidebar) {
-                // Look for buttons near the sidebar
-                const allButtons = document.querySelectorAll('button');
-                for (const btn of allButtons) {
-                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-                    const ariaExpanded = btn.getAttribute('aria-expanded');
-                    
-                    if (ariaLabel.includes('sidebar') || 
-                        ariaLabel.includes('collapse') ||
-                        ariaLabel.includes('expand') ||
-                        ariaLabel.includes('menu')) {
-                        if (btn.offsetParent !== null) { // Check if visible
-                            btn.click();
-                            return true;
-                        }
-                    }
-                }
-            }
-            
-            return false;
-        }
-        
-        // Try immediately
-        if (tryToggle()) {
-            return true;
-        }
-        
-        // If not found, wait a bit and try again (for dynamic content)
-        setTimeout(() => {
-            tryToggle();
-        }, 100);
-        
-        return false;
-    }
-    
-    // Make function globally available
-    window.toggleStreamlitSidebar = toggleStreamlitSidebar;
-    
-    // Also try to attach event listeners when DOM is ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            // Ensure function is available
-            window.toggleStreamlitSidebar = toggleStreamlitSidebar;
-        });
-    }
-    </script>
 """, unsafe_allow_html=True)
 
 # ---------------- Paths ----------------
@@ -460,9 +325,41 @@ def prepare_features_for_prediction(date, time_str, irradiance, temp, humidity, 
     
     return features, dt
 
+def train_and_save_model():
+    """Train a Random Forest model from train.csv and save it."""
+    train_path = BASE_DIR / "data" / "train.csv"
+    if not train_path.exists():
+        st.error("Training data not found at data/train.csv")
+        return None
+    try:
+        with open(FEATURE_COLS_PATH, 'r') as f:
+            cols = json.load(f)
+
+        train = pd.read_csv(train_path)
+        train["target_next15_kW"] = train["actual_power_kW"].shift(-1)
+        train = train.dropna().reset_index(drop=True)
+
+        X_train = train[cols]
+        y_train = train["target_next15_kW"]
+
+        rf = RandomForestRegressor(
+            n_estimators=100, max_depth=15, random_state=42, n_jobs=-1
+        )
+        rf.fit(X_train, y_train)
+
+        MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(rf, MODEL_PATH)
+        return rf
+    except Exception as e:
+        st.error(f"Error training model: {str(e)}")
+        return None
+
 @st.cache_resource
 def load_model():
-    """Load the trained model"""
+    """Load the trained model, training it first if not present."""
+    if not MODEL_PATH.exists():
+        with st.spinner("Model not found — training now (this takes ~1 min on first deploy)..."):
+            return train_and_save_model()
     try:
         model = joblib.load(MODEL_PATH)
         return model
@@ -580,20 +477,6 @@ if page == "📊 Dashboard":
     # Filter data
     mask = (df[time_col].dt.date >= start_date) & (df[time_col].dt.date <= end_date)
     dfv = df.loc[mask].copy()
-    
-    # Add hamburger menu button instruction
-    st.markdown("""
-    <div id="hamburger-menu-btn" style="position: fixed; top: 20px; left: 20px; z-index: 9999; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                border: none; border-radius: 8px; padding: 12px 15px; cursor: pointer; 
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;" 
-                onclick="toggleStreamlitSidebar()">
-        <div style="display: flex; flex-direction: column; gap: 4px; width: 24px;">
-            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
-            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
-            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
     
     # Header with enhanced styling
     st.markdown('<div class="main-header">🌞 SolarCast — Solar Power Prediction Dashboard</div>', unsafe_allow_html=True)
@@ -866,20 +749,6 @@ if page == "📊 Dashboard":
 
 # ---------------- Manual Prediction Page ----------------
 elif page == "🔮 Manual Prediction":
-    # Add hamburger menu button for manual prediction page too
-    st.markdown("""
-    <div id="hamburger-menu-btn-2" style="position: fixed; top: 20px; left: 20px; z-index: 9999; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                border: none; border-radius: 8px; padding: 12px 15px; cursor: pointer; 
-                box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;" 
-                onclick="toggleStreamlitSidebar()">
-        <div style="display: flex; flex-direction: column; gap: 4px; width: 24px;">
-            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
-            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
-            <span style="display: block; height: 3px; width: 100%; background: white; border-radius: 2px;"></span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     st.markdown('<div class="main-header">🔮 Manual Power Prediction</div>', unsafe_allow_html=True)
     st.markdown("---")
     
